@@ -2,7 +2,7 @@ module mojo_top (
     input clk,
     input rst_n,
     output [7:0] led,
-    output reg spi_miso,
+    output spi_miso,
     input spi_ss,
     input spi_mosi,
     input spi_sck,
@@ -26,7 +26,7 @@ module mojo_top (
   wire mem_wea;
   reg[12:0] mem_addra;
   wire[7:0] mem_dina;
-  wire[7:0] mem_douta;
+  //wire[7:0] mem_douta;
 
   reg mem_clkb;
   wire mem_web;
@@ -40,9 +40,9 @@ module mojo_top (
   reg[2:0] memory_state;
 
   blk_mem_gen_v7_3(.clka(mem_clk_a), .rsta(rst), .wea(mem_wea),
-                   .addra(mem_addra), .dina(mem_dina), .douta(mem_douta),
+                   .addra(mem_addra), .dina(mem_dina), .douta(),
                    .clkb(mem_clkb), .rstb(rst), .web(mem_web),
-                   .addrb(mem_addrb), .doutb(mem_doutb));
+                   .addrb(mem_addrb), .dinb(mem_dinb), .doutb(mem_doutb));
 
   // Always write disable port A (port A is used to drive the strips).
   assign mem_wea = 0;
@@ -51,7 +51,7 @@ module mojo_top (
   // Always write enable port B (port B is driven by the SPI slave).
   assign mem_web = 1;
 
-  wire[7:0] spi_din;
+  reg[7:0] spi_din;
   wire spi_done;
   wire[7:0] spi_dout;
 
@@ -76,7 +76,8 @@ module mojo_top (
       mem_clkb <= 0;
       mem_addrb <= 13'h0000;
       mem_dinb <= 8'h00;
-      memory_address_position = 0;
+      memory_address_position <= 0;
+      memory_state = MEMORY_STATE_WRITE_ADDRESS;
     end else begin
       if (spi_selected) begin
         if (memory_state == MEMORY_STATE_WRITE_ADDRESS) begin
@@ -85,7 +86,7 @@ module mojo_top (
             memory_address_position <= memory_address_position + 1;
 
             if (memory_address_position == 1) begin
-              memory_state == MEMORY_STATE_WRITE_DATA;
+              memory_state = MEMORY_STATE_WRITE_DATA;
             end
           end
         end else if (memory_state == MEMORY_STATE_WRITE_DATA) begin
@@ -96,7 +97,7 @@ module mojo_top (
         end
       end else begin
         mem_clkb <= 0;
-        memory_state <= MEMORY_STATE_WRITE_ADDRESS;
+        memory_state = MEMORY_STATE_WRITE_ADDRESS;
       end
     end
   end
@@ -130,7 +131,6 @@ module mojo_top (
   assign led[7:0] = 8'bzzzzzzzz;
 
   always @(posedge clk) begin
-    spi_miso = 1'bz;
     avr_rx = 1'bz;
 
 
