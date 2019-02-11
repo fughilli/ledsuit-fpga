@@ -6,7 +6,7 @@ import sys
 
 ## CONFIGURATION ##
 source_dirs = ["."]
-source_ext = [(".v", "verilog")]
+source_ext = [(".v", "verilog"), (".ngc", "ngc")]
 constraint_file = "const.ucf"
 top_file_suffix = "_top"
 
