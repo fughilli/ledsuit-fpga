@@ -6,7 +6,6 @@ module spi_slave(
     output miso,
     input sck,
     output done,
-    output selected,
     input [7:0] din,
     output [7:0] dout
   );
