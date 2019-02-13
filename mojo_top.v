@@ -6,6 +6,12 @@ module mojo_top (
     input spi_ss,
     input spi_mosi,
     input spi_sck,
+
+    output s_spi_miso,
+    input s_spi_ss,
+    input s_spi_mosi,
+    inout s_spi_clk,
+
     input avr_tx,
     output reg avr_rx,
     input avr_rx_busy,
@@ -22,13 +28,10 @@ module mojo_top (
     .out(rst)
   );
 
-  reg mem_clka;
   wire mem_wea;
   reg[12:0] mem_addra;
   wire[7:0] mem_dina;
-  //wire[7:0] mem_douta;
 
-  reg mem_clkb;
   wire mem_web;
   reg[12:0] mem_addrb;
   reg[7:0] mem_dinb;
@@ -39,9 +42,9 @@ module mojo_top (
   reg[2:0] memory_address_position;
   reg[2:0] memory_state;
 
-  blk_mem_gen_v7_3(.clka(mem_clk_a), .rsta(rst), .wea(mem_wea),
+  blk_mem_gen_v7_3 blk_mem (.clka(clk), .rsta(rst), .wea(mem_wea),
                    .addra(mem_addra), .dina(mem_dina), .douta(),
-                   .clkb(mem_clkb), .rstb(rst), .web(mem_web),
+                   .clkb(clk), .rstb(rst), .web(mem_web),
                    .addrb(mem_addrb), .dinb(mem_dinb), .doutb(mem_doutb));
 
   // Always write disable port A (port A is used to drive the strips).
@@ -49,55 +52,123 @@ module mojo_top (
   // Not writing; terminate DINA as 0.
   assign mem_dina = 8'h00;
   // Always write enable port B (port B is driven by the SPI slave).
-  assign mem_web = 1;
 
-  reg[7:0] spi_din;
+  wire[7:0] spi_din;
   wire spi_done;
   wire[7:0] spi_dout;
+
+  // Use a register for `mem_web`.
+  reg mem_web_reg;
+  assign mem_web = mem_web_reg;
 
   spi_slave spi_out (
     .clk(clk),
     .din(spi_din),
     .done(spi_done),
     .dout(spi_dout),
-    .miso(spi_miso),
-    .mosi(spi_mosi),
+    .miso(s_spi_miso),
+    .mosi(s_spi_mosi),
     .rst(rst),
-    .sck(spi_clk),
-    .ss(spi_ss)
+    .sck(s_spi_clk),
+    .ss(s_spi_ss)
   );
 
-  wire spi_selected = ~spi_ss;
+  assign spi_din = mem_doutb;
 
+  // Not using the AVR SPI port. Terminate MISO as HiZ.
+  assign spi_miso = 1'bz;
+
+  // Slave SPI port slave select is active-low.
+  wire spi_selected = ~s_spi_ss;
+
+  // Debug output on the LED array.
+  assign led = {mem_addrb[3:0], memory_address_position[1:0], memory_state[1:0]};
+
+  reg write_op_selected;
+  reg increment_address;
+
+  // Memory address is provided as two bytes:
+  //
+  // +---+---+---+---+---+---+---+---+  +---+---+---+---+---+---+---+---+
+  // | w |   |   | a | a | a | a | a |  | a | a | a | a | a | a | a | a |
+  // +---+---+---+---+---+---+---+---+  +---+---+---+---+---+---+---+---+
+  //
+  // w = write enable
+  // a = 13-bit address
+  //
+  // When writing, perform SPI transaction as follows:
+  //
+  // CS ENABLE
+  // write: address upper byte
+  // write: address lower byte
+  // write: data value 0
+  // write: data value 1
+  // ...
+  // write: data value N
+  // CS DISABLE
+  //
+  // When reading, perform SPI transaction as follows:
+  //
+  // CS ENABLE
+  // write: address upper byte
+  // write: address lower byte
+  // write: dummy byte (value ignored)
+  // read: -> data value 0
+  // read: -> data value 1
+  // ...
+  // read: -> data value N
+  // CS DISABLE
   always @(posedge clk) begin
     if (rst) begin
-      mem_clka <= 0;
+      // Held in reset.
       mem_addra <= 13'h0000;
-      mem_clkb <= 0;
       mem_addrb <= 13'h0000;
       mem_dinb <= 8'h00;
       memory_address_position <= 0;
-      memory_state = MEMORY_STATE_WRITE_ADDRESS;
+      memory_state <= MEMORY_STATE_WRITE_ADDRESS;
+      mem_web_reg <= 0;
+      write_op_selected <= 0;
+      increment_address <= 0;
     end else begin
       if (spi_selected) begin
-        if (memory_state == MEMORY_STATE_WRITE_ADDRESS) begin
-          if (spi_done) begin
+        if (spi_done) begin
+          if (memory_state == MEMORY_STATE_WRITE_ADDRESS) begin
+            // We are receiving the address.
+            if (memory_address_position == 0) begin
+              // The first byte contains the write enable bit in the MSB.
+              write_op_selected <= spi_dout[7];
+            end
+
+            mem_web_reg <= 0;
+            // Shift in the address component.
             mem_addrb <= {mem_addrb[4:0], spi_dout};
             memory_address_position <= memory_address_position + 1;
 
             if (memory_address_position == 1) begin
-              memory_state = MEMORY_STATE_WRITE_DATA;
+              // Done capturing the address. Advance the state machine.
+              memory_state <= MEMORY_STATE_WRITE_DATA;
             end
+          end else if (memory_state == MEMORY_STATE_WRITE_DATA) begin
+            mem_dinb <= spi_dout;
+            mem_web_reg <= write_op_selected;
+            // Increment the address on the next cycle, when `spi_done` is
+            // cleared.
+            increment_address <= 1;
           end
-        end else if (memory_state == MEMORY_STATE_WRITE_DATA) begin
-          spi_din <= mem_doutb;
-          mem_dinb <= spi_dout;
-          mem_addrb <= mem_addrb + 1;
-          mem_clkb <= spi_done;
+        end else begin
+          mem_web_reg <= 0;
+          increment_address <= 0;
+          if (increment_address) begin
+            mem_addrb <= mem_addrb + 1;
+          end
         end
       end else begin
-        mem_clkb <= 0;
-        memory_state = MEMORY_STATE_WRITE_ADDRESS;
+        // Slave SPI port is inactive. Reset memory controller state.
+        mem_web_reg <= 0;
+        increment_address <= 0;
+        memory_state <= MEMORY_STATE_WRITE_ADDRESS;
+        memory_address_position <= 0;
+        write_op_selected <= 0;
       end
     end
   end
@@ -127,8 +198,6 @@ module mojo_top (
   assign led_strip_do = led_strip_do_reg;
 
   reg current_bit;
-
-  assign led[7:0] = 8'bzzzzzzzz;
 
   always @(posedge clk) begin
     avr_rx = 1'bz;
