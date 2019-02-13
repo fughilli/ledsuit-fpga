@@ -6,7 +6,7 @@ import sys
 
 ## CONFIGURATION ##
 source_dirs = ["."]
-source_ext = [(".v", "verilog"), (".ngc", "ngc")]
+source_ext = [(".v", "verilog"), (".ngc", None)]
 constraint_file = "const.ucf"
 top_file_suffix = "_top"
 
@@ -35,7 +35,7 @@ def check_source_ext(s):
 def source_type(s):
     '''Get the source type for a given source file'''
     for ext in source_ext:
-        if s.endswith(ext[0]):
+        if s.endswith(ext[0]) and ext[1] is not None:
             return ext[1]
     return None
 
@@ -60,7 +60,7 @@ topfile = find_top(sources)
 
 open(bdir(project_file), "w").write(
     "\n".join(["%s %s %s" % (source_type(source), default_lib, source) for
-    source in sources]) + "\n")
+        source in filter((lambda s : source_type(s) is not None), sources)]) + "\n")
 
 with open("build.ninja", "w") as buildfile:
     n = Writer(buildfile)
@@ -83,7 +83,7 @@ with open("build.ninja", "w") as buildfile:
                          "$opt_level\" > $out")
 
     n.rule("synthesize", "(cd $builddir; xst -ifn xst_script)")
-    n.rule("build", "(cd $builddir; ngdbuild -uc $const design.ngc design.ngd)")
+    n.rule("build", "(cd $builddir; ngdbuild -sd $builddir -uc $const design.ngc design.ngd)")
     n.rule("map", "(cd $builddir; map -global_opt $global_opt -logic_opt on " +
                   "-mt on -timing -w design.ngd -o design.ncd design.pcf)")
     n.rule("par", "(cd $builddir; par -w design.ncd finished/design.ncd " +
