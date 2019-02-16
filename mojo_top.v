@@ -30,7 +30,7 @@ module mojo_top (
 
   wire mem_wea;
   reg[12:0] mem_addra;
-  wire[7:0] mem_dina;
+  wire[7:0] mem_douta;
 
   wire mem_web;
   reg[12:0] mem_addrb;
@@ -43,7 +43,7 @@ module mojo_top (
   reg[2:0] memory_state;
 
   blk_mem_gen_v7_3 blk_mem (.clka(clk), .rsta(rst), .wea(mem_wea),
-                   .addra(mem_addra), .dina(mem_dina), .douta(),
+                   .addra(mem_addra), .dina(), .douta(mem_douta),
                    .clkb(clk), .rstb(rst), .web(mem_web),
                    .addrb(mem_addrb), .dinb(mem_dinb), .doutb(mem_doutb));
 
@@ -121,7 +121,6 @@ module mojo_top (
   always @(posedge clk) begin
     if (rst) begin
       // Held in reset.
-      mem_addra <= 13'h0000;
       mem_addrb <= 13'h0000;
       mem_dinb <= 8'h00;
       memory_address_position <= 0;
@@ -179,7 +178,8 @@ module mojo_top (
   parameter ONE_PULSE_TIME = 50;
   parameter RESET_PULSE_TIME = 50000;
 
-  parameter NUM_BITS = NUM_LEDS * 24;
+  parameter NUM_CHANNELS = 3;
+  parameter TOTAL_NUM_CHANNELS = NUM_LEDS * NUM_CHANNELS;
 
   parameter DRIVE_DRIVING = 0;
   parameter DRIVE_RESET = 1;
@@ -187,17 +187,19 @@ module mojo_top (
   reg drive_state;
   reg[$clog2(RESET_PULSE_TIME)+1:0] pulse_counter;
 
-  parameter LED_COUNTER_UPPER_BIT = $clog2(NUM_BITS)+1;
+  parameter CHANNEL_COUNTER_UPPER_BIT = $clog2(TOTAL_NUM_CHANNELS)+1;
+  parameter CHANNEL_WIDTH = 8;
 
-  reg[LED_COUNTER_UPPER_BIT:0] led_counter;
-  reg[$clog2(NUM_BITS)+1:0] zipper_register;
-  reg[23:0] color;
-  reg[32:0] counter;
+  reg[CHANNEL_COUNTER_UPPER_BIT:0] channel_counter;
+  reg[CHANNEL_COUNTER_UPPER_BIT:0] channel_counter_q;
+  reg[4:0] sub_channel_counter;
+  reg[4:0] sub_channel_counter_q;
   reg led_strip_do_reg;
 
   assign led_strip_do = led_strip_do_reg;
 
   reg current_bit;
+  reg update_current_bit;
 
   always @(posedge clk) begin
     avr_rx = 1'bz;
@@ -205,15 +207,24 @@ module mojo_top (
 
     if (rst) begin
       // Held in reset. Perform reset actions.
-      counter = 0;
-      led_counter = 0;
+      channel_counter <= 0;
+      channel_counter_q <= 0;
+      sub_channel_counter <= 0;
+      sub_channel_counter_q <= 0;
       pulse_counter = 0;
-      color = 24'h000000;
-      current_bit = 0;
+      current_bit <= 0;
+      update_current_bit <= 0;
       drive_state = DRIVE_RESET;
-      zipper_register = 0;
+      mem_addra <= 0;
     end else begin
+      if (update_current_bit) begin
+        update_current_bit <= 0;
+        current_bit <= mem_douta[sub_channel_counter];
+        sub_channel_counter <= sub_channel_counter_q;
+        channel_counter <= channel_counter_q;
+      end
       if (drive_state == DRIVE_DRIVING) begin
+        // Driving mode
         if (pulse_counter < (TOTAL_PULSE_TIME - 1)) begin
           pulse_counter = pulse_counter + 1;
           if (current_bit == 0) begin
@@ -222,27 +233,29 @@ module mojo_top (
               led_strip_do_reg = (pulse_counter < ONE_PULSE_TIME) ? 1'b1 : 1'b0;
           end
         end else begin
-          if (led_counter < (NUM_BITS - 1)) begin
-            led_counter = led_counter + 1;
+          if (sub_channel_counter < (CHANNEL_WIDTH - 1)) begin
+            sub_channel_counter_q <= sub_channel_counter + 1;
           end else begin
-            led_counter = 0;
-            drive_state = DRIVE_RESET;
+            sub_channel_counter_q <= 0;
+            if (channel_counter < (TOTAL_NUM_CHANNELS - 1)) begin
+              channel_counter_q <= channel_counter + 1;
+            end else begin
+              channel_counter_q <= 0;
+              drive_state = DRIVE_RESET;
+            end
           end
-          current_bit = (zipper_register == led_counter);
+          mem_addra <= {{(12-CHANNEL_COUNTER_UPPER_BIT){1'b0}}, channel_counter};
+          update_current_bit <= 1;
           pulse_counter = 0;
         end
       end else if (drive_state == DRIVE_RESET) begin
+        // Reset mode; just finished a single strip refresh
         led_strip_do_reg = 0;
         if (pulse_counter < (RESET_PULSE_TIME - 1)) begin
           pulse_counter = pulse_counter + 1;
         end else begin
           pulse_counter = 0;
           drive_state = DRIVE_DRIVING;
-          if (zipper_register < (NUM_BITS - 1)) begin
-            zipper_register = zipper_register + 8;
-          end else begin
-            zipper_register = 0;
-          end
         end
       end
     end
