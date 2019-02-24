@@ -43,7 +43,7 @@ module mojo_top (
   assign spi_miso = 1'bz;
 
   blk_mem_gen_v7_3 blk_mem (.clka(clk), .rsta(rst), .wea(mem_wea),
-                   .addra(mem_addra), .dina(), .douta(mem_douta),
+                   .addra(mem_addra), .dina(mem_dina), .douta(mem_douta),
                    .clkb(clk), .rstb(rst), .web(mem_web),
                    .addrb(mem_addrb), .dinb(mem_dinb), .doutb(mem_doutb));
 
@@ -107,9 +107,7 @@ module mojo_top (
   parameter CHANNEL_WIDTH = 8;
 
   reg[CHANNEL_COUNTER_UPPER_BIT:0] channel_counter;
-  reg[CHANNEL_COUNTER_UPPER_BIT:0] channel_counter_q;
   reg[4:0] sub_channel_counter;
-  reg[4:0] sub_channel_counter_q;
   reg led_strip_do_reg;
 
   assign led_strip_do = led_strip_do_reg;
@@ -124,24 +122,21 @@ module mojo_top (
     if (rst) begin
       // Held in reset. Perform reset actions.
       channel_counter <= 0;
-      channel_counter_q <= 0;
       sub_channel_counter <= 0;
-      sub_channel_counter_q <= 0;
       pulse_counter = 0;
-      current_bit <= 0;
-      update_current_bit <= 0;
+      current_bit = 0;
       drive_state = DRIVE_RESET;
-      mem_addra <= 0;
+      mem_addra = 0;
     end else begin
-      if (update_current_bit) begin
-        update_current_bit <= 0;
-        current_bit <= mem_douta[sub_channel_counter];
-        sub_channel_counter <= sub_channel_counter_q;
-        channel_counter <= channel_counter_q;
-      end
       if (drive_state == DRIVE_DRIVING) begin
         // Driving mode
         if (pulse_counter < (TOTAL_PULSE_TIME - 1)) begin
+          if (pulse_counter == 1) begin
+            mem_addra = {{(12-CHANNEL_COUNTER_UPPER_BIT-1){1'b0}}, channel_counter};
+          end
+          if (pulse_counter == 3) begin
+            current_bit = mem_douta[sub_channel_counter];
+          end
           pulse_counter = pulse_counter + 1;
           if (current_bit == 0) begin
               led_strip_do_reg = (pulse_counter < ZERO_PULSE_TIME) ? 1'b1 : 1'b0;
@@ -150,18 +145,16 @@ module mojo_top (
           end
         end else begin
           if (sub_channel_counter < (CHANNEL_WIDTH - 1)) begin
-            sub_channel_counter_q <= sub_channel_counter + 1;
+            sub_channel_counter <= sub_channel_counter + 1;
           end else begin
-            sub_channel_counter_q <= 0;
+            sub_channel_counter <= 0;
             if (channel_counter < (TOTAL_NUM_CHANNELS - 1)) begin
-              channel_counter_q <= channel_counter + 1;
+              channel_counter <= channel_counter + 1;
             end else begin
-              channel_counter_q <= 0;
+              channel_counter <= 0;
               drive_state = DRIVE_RESET;
             end
           end
-          mem_addra <= {{(12-CHANNEL_COUNTER_UPPER_BIT){1'b0}}, channel_counter};
-          update_current_bit <= 1;
           pulse_counter = 0;
         end
       end else if (drive_state == DRIVE_RESET) begin
