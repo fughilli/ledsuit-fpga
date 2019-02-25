@@ -144,10 +144,10 @@ module mojo_top (
               led_strip_do_reg = (pulse_counter < ONE_PULSE_TIME) ? 1'b1 : 1'b0;
           end
         end else begin
-          if (sub_channel_counter < (CHANNEL_WIDTH - 1)) begin
-            sub_channel_counter <= sub_channel_counter + 1;
+          if (sub_channel_counter != 0) begin
+            sub_channel_counter <= sub_channel_counter - 1;
           end else begin
-            sub_channel_counter <= 0;
+            sub_channel_counter <= CHANNEL_WIDTH - 1;
             if (channel_counter < (TOTAL_NUM_CHANNELS - 1)) begin
               channel_counter <= channel_counter + 1;
             end else begin
