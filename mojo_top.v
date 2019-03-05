@@ -52,7 +52,7 @@ module mojo_top (
   wire[7:0] spi_dout;
 
   // Slave SPI port slave select is active-low.
-  wire spi_selected = ~s_spi_ss;
+  wire spi_selected;
 
   spi_slave spi_out (
     .clk(clk),
@@ -63,7 +63,8 @@ module mojo_top (
     .mosi(s_spi_mosi),
     .rst(rst),
     .sck(s_spi_clk),
-    .ss(s_spi_ss)
+    .ss(s_spi_ss),
+    .selected(spi_selected)
   );
 
   // Always write disable port A (port A is used to drive the strips).

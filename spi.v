@@ -7,7 +7,8 @@ module spi_slave(
     input sck,
     output done,
     input [7:0] din,
-    output [7:0] dout
+    output [7:0] dout,
+    output selected
   );
 
   reg mosi_d, mosi_q;
@@ -23,6 +24,7 @@ module spi_slave(
   assign miso = miso_q;
   assign done = done_q;
   assign dout = dout_q;
+  assign selected = ~ss_q;
 
   always @(*) begin
     ss_d = ss;
