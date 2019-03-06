@@ -13,7 +13,7 @@ module mojo_top (
     inout s_spi_clk,
 
     input avr_tx,
-    output reg avr_rx,
+    output avr_rx,
     input avr_rx_busy,
     output led_strip_do
   );
@@ -31,7 +31,7 @@ module mojo_top (
   );
 
   wire mem_wea;
-  reg[12:0] mem_addra;
+  wire[12:0] mem_addra;
   wire[7:0] mem_douta;
 
   wire mem_web;
@@ -72,6 +72,8 @@ module mojo_top (
   // Not writing; terminate DINA as 0.
   assign mem_dina = 8'h00;
 
+  assign avr_rx = 1'bz;
+
   spi_memory #(.ADDRESS_WIDTH(13)) memory (
     .clk(clk),
     .rst(rst),
@@ -89,86 +91,18 @@ module mojo_top (
     .mem_addr(mem_addrb)
   );
 
-  parameter NUM_LEDS = 160;
-  parameter TOTAL_PULSE_TIME = 70;
-  parameter ZERO_PULSE_TIME = 20;
-  parameter ONE_PULSE_TIME = 50;
-  parameter RESET_PULSE_TIME = 50000;
+  wire strip_driver_1_mem_en;
+  wire strip_driver_2_mem_en;
 
-  parameter NUM_CHANNELS = 3;
-  parameter TOTAL_NUM_CHANNELS = NUM_LEDS * NUM_CHANNELS;
+  LedStripDriver #(.BASE_ADDRESS(0), .MEMORY_READ_ENABLE_DELAY(1)) strip_driver_1 (
+      .clk(clk),
+      .rst(rst),
 
-  parameter DRIVE_DRIVING = 0;
-  parameter DRIVE_RESET = 1;
+      .mem_addr(mem_addra),
+      .mem_data(mem_douta),
+      .mem_read_enable(strip_driver_1_mem_en),
 
-  reg drive_state;
-  reg[$clog2(RESET_PULSE_TIME)+1:0] pulse_counter;
-
-  parameter CHANNEL_COUNTER_UPPER_BIT = $clog2(TOTAL_NUM_CHANNELS)+1;
-  parameter CHANNEL_WIDTH = 8;
-
-  reg[CHANNEL_COUNTER_UPPER_BIT:0] channel_counter;
-  reg[4:0] sub_channel_counter;
-  reg led_strip_do_reg;
-
-  assign led_strip_do = led_strip_do_reg;
-
-  reg current_bit;
-  reg update_current_bit;
-
-  always @(posedge clk) begin
-    avr_rx = 1'bz;
-
-
-    if (rst) begin
-      // Held in reset. Perform reset actions.
-      channel_counter <= 0;
-      sub_channel_counter <= 0;
-      pulse_counter = 0;
-      current_bit = 0;
-      drive_state = DRIVE_RESET;
-      mem_addra = 0;
-    end else begin
-      if (drive_state == DRIVE_DRIVING) begin
-        // Driving mode
-        if (pulse_counter < (TOTAL_PULSE_TIME - 1)) begin
-          if (pulse_counter == 1) begin
-            mem_addra = {{(12-CHANNEL_COUNTER_UPPER_BIT-1){1'b0}}, channel_counter};
-          end
-          if (pulse_counter == 3) begin
-            current_bit = mem_douta[sub_channel_counter];
-          end
-          pulse_counter = pulse_counter + 1;
-          if (current_bit == 0) begin
-              led_strip_do_reg = (pulse_counter < ZERO_PULSE_TIME) ? 1'b1 : 1'b0;
-          end else begin
-              led_strip_do_reg = (pulse_counter < ONE_PULSE_TIME) ? 1'b1 : 1'b0;
-          end
-        end else begin
-          if (sub_channel_counter != 0) begin
-            sub_channel_counter <= sub_channel_counter - 1;
-          end else begin
-            sub_channel_counter <= CHANNEL_WIDTH - 1;
-            if (channel_counter < (TOTAL_NUM_CHANNELS - 1)) begin
-              channel_counter <= channel_counter + 1;
-            end else begin
-              channel_counter <= 0;
-              drive_state = DRIVE_RESET;
-            end
-          end
-          pulse_counter = 0;
-        end
-      end else if (drive_state == DRIVE_RESET) begin
-        // Reset mode; just finished a single strip refresh
-        led_strip_do_reg = 0;
-        if (pulse_counter < (RESET_PULSE_TIME - 1)) begin
-          pulse_counter = pulse_counter + 1;
-        end else begin
-          pulse_counter = 0;
-          drive_state = DRIVE_DRIVING;
-        end
-      end
-    end
-  end
+      .strip_out(led_strip_do)
+  );
 
 endmodule
