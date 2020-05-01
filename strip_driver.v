@@ -49,6 +49,7 @@ module LedStripDriver(
       current_bit <= 0;
       drive_state <= DRIVE_RESET;
       mem_addr <= BASE_ADDRESS;
+      mem_read_enable <= 0;
       channel_counter <= MAX_CHANNEL_INDEX - 1;
     end else begin
       if (drive_state == DRIVE_DRIVING) begin
@@ -57,9 +58,9 @@ module LedStripDriver(
           if (pulse_counter == MEMORY_READ_ENABLE_DELAY) begin
             mem_read_enable <= 1;
           end
-          if (pulse_counter == (MEMORY_READ_ENABLE_DELAY + 1)) begin
-            mem_read_enable <= 0;
+          if (pulse_counter == (MEMORY_READ_ENABLE_DELAY + 2)) begin
             current_bit <= mem_data[sub_channel_counter];
+            mem_read_enable <= 0;
           end
           pulse_counter <= pulse_counter + 1;
           if (current_bit == 0) begin

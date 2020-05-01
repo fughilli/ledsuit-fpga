@@ -15,7 +15,8 @@ module mojo_top (
     input avr_tx,
     output avr_rx,
     input avr_rx_busy,
-    output led_strip_do
+    output led_strip_do_1,
+    output led_strip_do_2
   );
 
   assign led = 8'h00;
@@ -93,16 +94,46 @@ module mojo_top (
 
   wire strip_driver_1_mem_en;
   wire strip_driver_2_mem_en;
+  wire [12:0] mem_addr_strip_1;
+  wire [12:0] mem_addr_strip_2;
 
   LedStripDriver #(.BASE_ADDRESS(0), .MEMORY_READ_ENABLE_DELAY(1)) strip_driver_1 (
       .clk(clk),
       .rst(rst),
 
-      .mem_addr(mem_addra),
+      .mem_addr(mem_addr_strip_1),
       .mem_data(mem_douta),
       .mem_read_enable(strip_driver_1_mem_en),
 
-      .strip_out(led_strip_do)
+      .strip_out(led_strip_do_1)
   );
+
+  LedStripDriver #(.BASE_ADDRESS(600), .MEMORY_READ_ENABLE_DELAY(10)) strip_driver_2 (
+      .clk(clk),
+      .rst(rst),
+
+      .mem_addr(mem_addr_strip_2),
+      .mem_data(mem_douta),
+      .mem_read_enable(strip_driver_2_mem_en),
+
+      .strip_out(led_strip_do_2)
+  );
+
+  assign mem_addra = strip_driver_1_mem_en ? mem_addr_strip_1 : mem_addr_strip_2; //mem_addr_strip_2;
+
+  //OneHotDemux #(.DATA_WIDTH(13)) address_demux (
+  //    .select({6'b0, strip_driver_2_mem_en, strip_driver_1_mem_en}),
+  //    .demux_input_0(mem_addr_strip_1),
+  //    .demux_input_1(mem_addr_strip_2),
+  //    .demux_input_2(0),
+  //    .demux_input_3(0),
+  //    .demux_input_4(0),
+  //    .demux_input_5(0),
+  //    .demux_input_6(0),
+  //    .demux_input_7(0),
+  //    .demux_output(mem_addra)
+  //);
+
+
 
 endmodule

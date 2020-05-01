@@ -24,7 +24,8 @@ NET "avr_tx" LOC = P55 | IOSTANDARD = LVTTL;
 NET "avr_rx" LOC = P59 | IOSTANDARD = LVTTL;
 NET "avr_rx_busy" LOC = P39 | IOSTANDARD = LVTTL;
 
-NET "led_strip_do" LOC=P9 | IOSTANDARD = LVTTL;
+NET "led_strip_do_1" LOC=P9 | IOSTANDARD = LVTTL;
+NET "led_strip_do_2" LOC=P11 | IOSTANDARD = LVTTL;
 
 NET "s_spi_miso" LOC = P10 | IOSTANDARD = LVTTL;
 NET "s_spi_mosi" LOC = P8 | IOSTANDARD = LVTTL;
