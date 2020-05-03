@@ -3,13 +3,13 @@
 module test_ice40_top(
 );
 
-reg clk_50, rst;
+reg clk_50mhz, rst;
 
 wire[12:0] mem_addr;
 wire strip_out;
 
 ice40_top top(
-    .CLK(clk_50),
+    .CLK(clk_50mhz),
     .PIN_1(strip_out),
     .USBPU()
 );
@@ -35,14 +35,14 @@ begin
         test_ice40_top.top.mem[i] = 0;
     end
 
-    clk_50=1'b0;
+    clk_50mhz=1'b0;
     rst=1'b1;
     #20 rst=1'b0;
 
-    #100_000_000 $display($time, "STOPPING SIMULATION");
+    #50_000_000 $display($time, "STOPPING SIMULATION");
     $finish;
 end
 
 always
-    #6 clk_50=~clk_50;
+    #2 clk_50mhz=~clk_50mhz;
 endmodule
