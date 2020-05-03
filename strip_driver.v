@@ -1,97 +1,118 @@
-module LedStripDriver(
+module strip_driver(
     input rst,
     input clk,
-
-    output reg[ADDRESS_WIDTH-1:0] mem_addr,
+    output[ADDRESS_WIDTH-1:0] mem_addr,
     input[7:0] mem_data,
-    output reg mem_read_enable,
-
     output strip_out
 );
 
-  parameter MAX_LEDS = 200;
+  parameter INPUT_CLOCK_FREQ_MHZ = 50;
+  parameter MAX_LEDS = 3;
   parameter NUM_CHANNELS = 3;
 
   parameter ADDRESS_WIDTH = 13;
-  parameter MAX_CHANNEL_INDEX = MAX_LEDS * NUM_CHANNELS;
-  parameter MAX_CHANNEL_INDEX_BITS = $clog2(MAX_CHANNEL_INDEX) + 1;
+  parameter MAX_CHANNEL_INDEX = (MAX_LEDS * NUM_CHANNELS) - 1;
   parameter BASE_ADDRESS = 0;
 
-  parameter MEMORY_READ_ENABLE_DELAY = 3;
+  parameter TOTAL_PULSE_TIME_NS = 1400;
+  parameter ZERO_PULSE_TIME_NS = 400;
+  parameter ONE_PULSE_TIME_NS = 1000;
+  parameter RESET_PULSE_TIME_NS = 1000000;
 
-  parameter TOTAL_PULSE_TIME = 70;
-  parameter ZERO_PULSE_TIME = 20;
-  parameter ONE_PULSE_TIME = 50;
-  parameter RESET_PULSE_TIME = 50000;
+  parameter TOTAL_PULSE_TIME = (TOTAL_PULSE_TIME_NS * INPUT_CLOCK_FREQ_MHZ / 1000) - 1;
+  parameter ZERO_PULSE_TIME = (ZERO_PULSE_TIME_NS * INPUT_CLOCK_FREQ_MHZ / 1000) - 1;
+  parameter ONE_PULSE_TIME = (ONE_PULSE_TIME_NS * INPUT_CLOCK_FREQ_MHZ / 1000) - 1;
+  parameter RESET_PULSE_TIME = (RESET_PULSE_TIME_NS * INPUT_CLOCK_FREQ_MHZ / 1000) - 1;
 
+  reg drive_state;
   parameter DRIVE_DRIVING = 0;
   parameter DRIVE_RESET = 1;
 
-  reg drive_state;
-  reg[$clog2(RESET_PULSE_TIME)+1:0] pulse_counter;
+  reg pulse_state;
+  parameter PULSE_FIRST_HALF = 0;
+  parameter PULSE_SECOND_HALF = 1;
+
+  reg[$clog2(RESET_PULSE_TIME) + 1:0] pulse_counter;
+  reg[$clog2(RESET_PULSE_TIME) + 1:0] pulse_counter_match;
 
   parameter CHANNEL_WIDTH = 8;
 
-  reg[MAX_CHANNEL_INDEX_BITS-1:0] channel_counter;
-  reg[4:0] sub_channel_counter;
-  reg led_strip_do_reg;
-
-  assign strip_out = led_strip_do_reg;
+  reg[$clog2(MAX_CHANNEL_INDEX) + 1:0] channel_counter;
+  reg[$clog2(CHANNEL_WIDTH) + 1:0] bit_counter;
 
   reg current_bit;
-  reg update_current_bit;
+
+  assign mem_addr = channel_counter + BASE_ADDRESS;
+
+  wire strip_out;
+  reg strip_out_reg;
+  assign strip_out = strip_out_reg;
 
   always @(posedge clk) begin
     if (rst) begin
       // Held in reset. Perform reset actions.
-      sub_channel_counter <= 0;
-      pulse_counter <= 0;
+      channel_counter <= 0;
       current_bit <= 0;
       drive_state <= DRIVE_RESET;
-      mem_addr <= BASE_ADDRESS;
-      mem_read_enable <= 0;
-      channel_counter <= MAX_CHANNEL_INDEX - 1;
+      strip_out_reg <= 0;
+      pulse_counter <= 0;
+      pulse_counter_match <= RESET_PULSE_TIME;
+      pulse_state <= 0;
+      bit_counter <= CHANNEL_WIDTH - 1;
     end else begin
       if (drive_state == DRIVE_DRIVING) begin
-        // Driving mode
-        if (pulse_counter < (TOTAL_PULSE_TIME - 1)) begin
-          if (pulse_counter == MEMORY_READ_ENABLE_DELAY) begin
-            mem_read_enable <= 1;
-          end
-          if (pulse_counter == (MEMORY_READ_ENABLE_DELAY + 2)) begin
-            current_bit <= mem_data[sub_channel_counter];
-            mem_read_enable <= 0;
-          end
-          pulse_counter <= pulse_counter + 1;
-          if (current_bit == 0) begin
-              led_strip_do_reg <= (pulse_counter < ZERO_PULSE_TIME) ? 1'b1 : 1'b0;
-          end else begin
-              led_strip_do_reg <= (pulse_counter < ONE_PULSE_TIME) ? 1'b1 : 1'b0;
-          end
-        end else begin
-          if (sub_channel_counter != 0) begin
-            sub_channel_counter <= sub_channel_counter - 1;
-          end else begin
-            sub_channel_counter <= CHANNEL_WIDTH - 1;
-            if (channel_counter != 0) begin
-              mem_addr <= mem_addr + 1;
-              channel_counter <= channel_counter - 1;
-            end else begin
-              channel_counter <= MAX_CHANNEL_INDEX - 1;
-              mem_addr <= BASE_ADDRESS;
+      // Driving the bits to the strip
+        if (pulse_counter == pulse_counter_match) begin
+          // Counter has matched. This occurs for two reasons:
+          if (pulse_state == PULSE_SECOND_HALF) begin
+          // 2) End of the bit time has been reached. Reset the counter and
+          // load the next bit.
+            pulse_counter <= 0;
+            if (channel_counter == MAX_CHANNEL_INDEX) begin
+              // We have finished driving the last channel. Clear the output to
+              // start the reset band.
+              strip_out_reg <= 0;
               drive_state <= DRIVE_RESET;
+              pulse_counter_match <= RESET_PULSE_TIME;
+              channel_counter <= 0;
+              bit_counter <= CHANNEL_WIDTH - 1;
+            end else begin
+              // Another bit still needs to be sent.
+              strip_out_reg <= 1;
+              pulse_counter_match <= current_bit ? ONE_PULSE_TIME : ZERO_PULSE_TIME;
+
+              current_bit <= mem_data[bit_counter];
+              if (bit_counter == 0) begin
+                channel_counter <= channel_counter + 1;
+                bit_counter <= CHANNEL_WIDTH - 1;
+              end else begin
+                bit_counter <= bit_counter - 1;
+              end
             end
+          end else if (pulse_state == PULSE_FIRST_HALF) begin
+          // 1) One or Zero band time has been reached.
+            pulse_counter_match <= TOTAL_PULSE_TIME;
+            strip_out_reg <= 0;
           end
-          pulse_counter <= 0;
+          pulse_state <= !pulse_state;
+        end else begin
+          pulse_counter <= pulse_counter + 1;
         end
       end else if (drive_state == DRIVE_RESET) begin
+        // Sending the RESET pulse
         // Reset mode; just finished a single strip refresh
-        led_strip_do_reg <= 0;
-        if (pulse_counter < (RESET_PULSE_TIME - 1)) begin
-          pulse_counter <= pulse_counter + 1;
-        end else begin
+        if (pulse_counter == pulse_counter_match) begin
           pulse_counter <= 0;
+          pulse_counter_match <= 0;
           drive_state <= DRIVE_DRIVING;
+          strip_out_reg <= 1;
+
+          // Set up the state machine for the first bit of the string.
+          current_bit <= mem_data[bit_counter];
+          bit_counter <= bit_counter - 1;
+          pulse_state <= PULSE_SECOND_HALF;
+        end else begin
+          pulse_counter <= pulse_counter + 1;
         end
       end
     end
