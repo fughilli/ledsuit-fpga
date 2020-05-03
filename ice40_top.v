@@ -1,12 +1,16 @@
 module ice40_top (
     input CLK,
     output PIN_1,
+    input PIN_2,
+    input PIN_3,
+    input PIN_4,
     output USBPU
 );
 
 // Top-level constants
 parameter NUM_LEDS = 72;
 parameter NUM_CHANNELS = NUM_LEDS * 3;
+parameter ADDRESS_WIDTH = $clog2(NUM_LEDS) + 1;
 
 wire clk_50mhz;
 wire clk_16mhz;
@@ -47,36 +51,61 @@ wire rst;
 assign rst = !resetn;
 
 // Memory
-wire[12:0] mem_addr_strip;
+wire[ADDRESS_WIDTH - 1:0] mem_addr_strip;
 reg[7:0] mem[0:NUM_CHANNELS - 1];
 wire[7:0] mem_dout;
 assign mem_dout = mem[mem_addr_strip];
 
-// Debug counter
-reg[16:0] counter;
-reg[7:0] channel_counter;
-reg[7:0] write_value;
-always @(posedge clk_50mhz) begin
-    if (rst) begin
-        counter <= 0;
-        channel_counter <= 0;
-        write_value <= 8'h03;
-    end else begin
-        counter <= counter + 1;
-        if (counter == 0) begin
-            if (channel_counter == (NUM_CHANNELS - 1)) begin
-                channel_counter <= 0;
-                write_value <= write_value ^ 8'h03;
-            end else begin
-                channel_counter <= channel_counter + 1;
-            end
-            mem[channel_counter] <= write_value;
-        end
-    end
+wire mem_we;
+wire[7:0] mem_din;
+wire[12:0] mem_addr;
+
+always @(posedge mem_we) begin
+    mem[mem_addr[7:0]] <= mem_din;
 end
 
+// SPI interface
+wire[7:0] spi_dout;
+wire[7:0] spi_din;
+wire spi_done, spi_selected;
+
+spi_slave spi_out (
+    .clk(clk_50mhz),
+    .rst(rst),
+
+    .miso(),
+    .mosi(PIN_4),
+    .sck(PIN_3),
+    .ss(PIN_2),
+
+    .din(spi_din),
+    .dout(spi_dout),
+
+    .done(spi_done),
+    .selected(spi_selected)
+);
+
+// SPI memory controller
+spi_memory #(.ADDRESS_WIDTH(13)) memory_controller (
+    .clk(clk_50mhz),
+    .rst(rst),
+
+    .spi_din(spi_din),
+    .spi_dout(spi_dout),
+    .spi_done(spi_done),
+    .spi_selected(spi_selected),
+
+    .mem_we(mem_we),
+    .mem_din(mem_din),
+    .mem_dout(8'h55),
+    .mem_addr(mem_addr)
+);
+
 // Strip driver
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50), .BASE_ADDRESS(0), .MAX_LEDS(NUM_LEDS)) strip_driver (
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+               .BASE_ADDRESS(0),
+               .MAX_LEDS(NUM_LEDS),
+               .ADDRESS_WIDTH(ADDRESS_WIDTH)) strip_driver_1 (
     .clk(clk_50mhz),
     .rst(rst),
     .mem_addr(mem_addr_strip),
