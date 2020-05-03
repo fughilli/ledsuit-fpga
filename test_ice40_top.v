@@ -14,7 +14,7 @@ ice40_top top(
     .USBPU()
 );
 
-//integer i;
+integer i;
 
 initial
 begin
@@ -30,14 +30,16 @@ begin
     $dumpvars(0, test_ice40_top.top.mem[6]);
     $dumpvars(0, test_ice40_top.top.mem[7]);
     $dumpvars(0, test_ice40_top.top.mem[8]);
-    //for(i=1;i<10;i=i+1) begin
-    //    $dumpvars(0, test_ice40_top.top.mem[i-1]);
-    //end
+
+    for(i=0;i<72*3;i=i+1) begin
+        test_ice40_top.top.mem[i] = 0;
+    end
+
     clk_50=1'b0;
     rst=1'b1;
     #20 rst=1'b0;
 
-    #10_000_000 $display($time, "STOPPING SIMULATION");
+    #100_000_000 $display($time, "STOPPING SIMULATION");
     $finish;
 end
 

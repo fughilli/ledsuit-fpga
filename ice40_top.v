@@ -4,11 +4,16 @@ module ice40_top (
     output USBPU
 );
 
+// Top-level constants
+parameter NUM_LEDS = 72;
+parameter NUM_CHANNELS = NUM_LEDS * 3;
+
 wire clk_50mhz;
 wire clk_16mhz;
 
 assign clk_16mhz = CLK;
 
+// PLL configuration
 SB_PLL40_CORE pll_instance (
   .REFERENCECLK(clk_16mhz),
   .PLLOUTCORE(clk_50mhz),
@@ -16,7 +21,6 @@ SB_PLL40_CORE pll_instance (
   .BYPASS(0)
 );
 
-// Fin=16, Fout=50;
 defparam pll_instance.DIVR = 0;
 defparam pll_instance.DIVF = 49;
 defparam pll_instance.DIVQ = 4;
@@ -42,13 +46,9 @@ end
 wire rst;
 assign rst = !resetn;
 
-parameter NUM_LEDS = 72;
-
 // Memory
 wire[12:0] mem_addr_strip;
-parameter NUM_CHANNELS = NUM_LEDS * 3;
 reg[7:0] mem[0:NUM_CHANNELS - 1];
-integer i;
 wire[7:0] mem_dout;
 assign mem_dout = mem[mem_addr_strip];
 
@@ -56,7 +56,6 @@ assign mem_dout = mem[mem_addr_strip];
 reg[16:0] counter;
 reg[7:0] channel_counter;
 reg[7:0] write_value;
-//assign PIN_1 = counter[12];
 always @(posedge clk_50mhz) begin
     if (rst) begin
         counter <= 0;
@@ -74,11 +73,9 @@ always @(posedge clk_50mhz) begin
             mem[channel_counter] <= write_value;
         end
     end
-
 end
 
-//assign PIN_2 = mem[0][0];
-
+// Strip driver
 strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50), .BASE_ADDRESS(0), .MAX_LEDS(NUM_LEDS)) strip_driver (
     .clk(clk_50mhz),
     .rst(rst),
