@@ -98,7 +98,7 @@ module strip_driver(
               pulse_counter_match <= current_bit ? ONE_PULSE_TIME : ZERO_PULSE_TIME;
               if (bit_counter == 0) begin
                 channel_counter <= channel_counter + 1;
-                if (mem_addr_reg != MAX_CHANNEL_INDEX) begin
+                if (mem_addr_reg != (MAX_CHANNEL_INDEX + BASE_ADDRESS)) begin
                     mem_addr_reg <= mem_addr_reg + 1;
                     mem_req_reg <= 1;
                 end

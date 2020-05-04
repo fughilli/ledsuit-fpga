@@ -6,57 +6,75 @@ module test(
 reg clk_50mhz, rst;
 
 parameter ADDRESS_WIDTH = 10;
-parameter NUM_LEDS = 5;
+parameter NUM_LEDS = 300;
+parameter NUM_DRIVERS = 2;
 parameter NUM_CHANNELS = NUM_LEDS * 3;
 
-// Memory
-wire[ADDRESS_WIDTH - 1:0] mem_addr;
-reg[7:0] mem[0:NUM_CHANNELS - 1];
 
-reg[7:0] mem_dout;
-reg mem_rdy;
-wire mem_req;
-
-reg[7:0] mem_read_counter;
-// Simulate a read delay to test strip driver memory request logic.
-parameter MEM_READ_DELAY = 10;
-
-always @(posedge clk_50mhz) begin
-    if (rst) begin
-        mem_rdy <= 0;
-        mem_dout <= 0;
-        mem_read_counter <= 0;
-    end else begin
-        if (mem_req) begin
-            // There's an outstanding request
-            if (!mem_rdy) begin
-                if (mem_read_counter == MEM_READ_DELAY) begin
-                    mem_read_counter <= 0;
-                    // Data has not been served yet. Transfer bits from memory
-                    // and mark ready flag.
-                    mem_dout <= mem[mem_addr];
-                    mem_rdy <= 1;
-                end else begin
-                    mem_read_counter <= mem_read_counter + 1;
-                end
-            end
-        end else begin
-            // Request line is clear. Clear ready bit.
-            mem_rdy <= 0;
-        end
-    end
-end
-
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50), .MAX_LEDS(NUM_LEDS), .ADDRESS_WIDTH(ADDRESS_WIDTH)) test_strip_driver(
+wire data_req_0;
+wire data_rdy_0;
+wire[7:0] data_0;
+wire[ADDRESS_WIDTH - 1:0] data_addr_0;
+wire strip_out_0;
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+               .MAX_LEDS(NUM_LEDS),
+               .ADDRESS_WIDTH(ADDRESS_WIDTH)) strip_driver_0(
     .clk(clk_50mhz),
     .rst(rst),
 
-    .mem_req(mem_req),
-    .mem_rdy(mem_rdy),
-    .mem_data(mem_dout),
-    .mem_addr(mem_addr),
+    .mem_req(data_req_0),
+    .mem_rdy(data_rdy_0),
+    .mem_data(data_0),
+    .mem_addr(data_addr_0),
 
-    .strip_out(strip_out)
+    .strip_out(strip_out_0)
+);
+
+wire data_req_1;
+wire data_rdy_1;
+wire[7:0] data_1;
+wire[ADDRESS_WIDTH - 1:0] data_addr_1;
+wire strip_out_1;
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+               .MAX_LEDS(NUM_LEDS),
+               .ADDRESS_WIDTH(ADDRESS_WIDTH),
+               .BASE_ADDRESS(NUM_CHANNELS)) strip_driver_1(
+    .clk(clk_50mhz),
+    .rst(rst),
+
+    .mem_req(data_req_1),
+    .mem_rdy(data_rdy_1),
+    .mem_data(data_1),
+    .mem_addr(data_addr_1),
+
+    .strip_out(strip_out_1)
+);
+
+// Memory
+wire[ADDRESS_WIDTH - 1:0] mem_data_addr;
+reg[7:0] mem[0:NUM_CHANNELS*NUM_DRIVERS - 1];
+
+wire[7:0] mem_data;
+assign mem_data = mem[mem_data_addr];
+
+bus_arbiter #(.ADDRESS_WIDTH(ADDRESS_WIDTH), .DATA_WIDTH(8)) bus_arbiter(
+    .clk(clk_50mhz),
+    .rst(rst),
+
+    .data_req_0(data_req_0),
+    .data_req_1(data_req_1),
+
+    .data_addr_0(data_addr_0),
+    .data_addr_1(data_addr_1),
+
+    .data_0(data_0),
+    .data_1(data_1),
+
+    .data_rdy_0(data_rdy_0),
+    .data_rdy_1(data_rdy_1),
+
+    .mem_data_addr(mem_data_addr),
+    .mem_data(mem_data)
 );
 
 integer i;
@@ -65,10 +83,9 @@ initial
 begin
     $display($time, "STARTING SIMULATION");
     $dumpfile("test.vcd");
-    $dumpvars(0, test_strip_driver);
     $dumpvars(0, test);
 
-    for(i=0; i<NUM_CHANNELS; i+=1) begin
+    for(i=0; i<NUM_CHANNELS*NUM_DRIVERS; i+=1) begin
         mem[i] = i;
     end
 
@@ -76,7 +93,7 @@ begin
     rst=1'b1;
     #20 rst=1'b0;
 
-    #20_000_000 $display($time, "STOPPING SIMULATION");
+    #2_000_000 $display($time, "STOPPING SIMULATION");
     $finish;
 end
 

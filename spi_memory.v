@@ -34,14 +34,17 @@ module spi_memory(
   reg write_op_selected;
   reg increment_address;
 
+  wire[ADDRESS_WIDTH-1:0] shifted_mem_addr;
+  assign shifted_mem_addr = {mem_addr[6:0], spi_dout};
+
   // Memory address is provided as two bytes:
   //
   // +---+---+---+---+---+---+---+---+  +---+---+---+---+---+---+---+---+
-  // | w |   |   | a | a | a | a | a |  | a | a | a | a | a | a | a | a |
+  // | w | a | a | a | a | a | a | a |  | a | a | a | a | a | a | a | a |
   // +---+---+---+---+---+---+---+---+  +---+---+---+---+---+---+---+---+
   //
   // w = write enable
-  // a = 13-bit address
+  // a = up to 15-bit address
   //
   // When writing, perform SPI transaction as follows:
   //
@@ -68,7 +71,7 @@ module spi_memory(
   always @(posedge clk) begin
     if (rst) begin
       // Held in reset.
-      mem_addr <= 13'h0000;
+      mem_addr <= 0;
       mem_din <= 8'h00;
       memory_address_position <= 0;
       memory_state <= MEMORY_STATE_WRITE_ADDRESS;
@@ -87,7 +90,7 @@ module spi_memory(
 
             mem_we_reg <= 0;
             // Shift in the address component.
-            mem_addr <= {mem_addr[4:0], spi_dout};
+            mem_addr <= shifted_mem_addr[ADDRESS_WIDTH - 1 : 0];
             memory_address_position <= memory_address_position + 1;
 
             if (memory_address_position == 1) begin
@@ -105,7 +108,7 @@ module spi_memory(
           mem_we_reg <= 0;
           increment_address <= 0;
           if (increment_address) begin
-            mem_addr <= mem_addr  + 1;
+            mem_addr <= mem_addr + 1;
           end
         end
       end else begin
