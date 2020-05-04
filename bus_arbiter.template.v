@@ -1,4 +1,5 @@
-{% set indices = range(2) %}
+{% set num_channels = 8 %}
+{% set indices = range(num_channels) %}
 module bus_arbiter(
     input clk,
     input rst,
