@@ -1,6 +1,9 @@
 module strip_driver(
     input rst,
     input clk,
+
+    input mem_rdy,
+    output mem_req,
     output[ADDRESS_WIDTH-1:0] mem_addr,
     input[7:0] mem_data,
     output strip_out
@@ -43,7 +46,10 @@ module strip_driver(
 
   reg current_bit;
 
-  assign mem_addr = mem_addr_reg + BASE_ADDRESS;
+  assign mem_addr = mem_addr_reg;
+  reg mem_req_reg;
+  assign mem_req = mem_req_reg;
+  reg[7:0] mem_buffer_reg;
 
   wire strip_out;
   reg strip_out_reg;
@@ -60,8 +66,14 @@ module strip_driver(
       pulse_counter_match <= RESET_PULSE_TIME;
       pulse_state <= 0;
       bit_counter <= CHANNEL_WIDTH - 1;
-      mem_addr_reg <= 0;
+      mem_addr_reg <= BASE_ADDRESS;
+      mem_buffer_reg <= 0;
+      mem_req_reg <= 1;
     end else begin
+      if (mem_rdy & mem_req_reg) begin
+        mem_buffer_reg <= mem_data;
+        mem_req_reg <= 0;
+      end
       if (drive_state == DRIVE_DRIVING) begin
       // Driving the bits to the strip
         if (pulse_counter == pulse_counter_match) begin
@@ -77,7 +89,8 @@ module strip_driver(
               drive_state <= DRIVE_RESET;
               pulse_counter_match <= RESET_PULSE_TIME;
               channel_counter <= 0;
-              mem_addr_reg <= 0;
+              mem_addr_reg <= BASE_ADDRESS;
+              mem_req_reg <= 1;
               bit_counter <= CHANNEL_WIDTH - 1;
             end else begin
               // Another bit still needs to be sent.
@@ -87,6 +100,7 @@ module strip_driver(
                 channel_counter <= channel_counter + 1;
                 if (mem_addr_reg != MAX_CHANNEL_INDEX) begin
                     mem_addr_reg <= mem_addr_reg + 1;
+                    mem_req_reg <= 1;
                 end
                 bit_counter <= CHANNEL_WIDTH - 1;
               end else begin
@@ -97,7 +111,7 @@ module strip_driver(
           // 1) One or Zero band time has been reached.
             pulse_counter_match <= TOTAL_PULSE_TIME;
             strip_out_reg <= 0;
-            current_bit <= mem_data[bit_counter];
+            current_bit <= mem_buffer_reg[bit_counter];
           end
           pulse_state <= !pulse_state;
         end else begin
@@ -113,7 +127,7 @@ module strip_driver(
           //strip_out_reg <= 1;
 
           // Set up the state machine for the first bit of the string.
-          current_bit <= mem_data[bit_counter];
+          current_bit <= mem_buffer_reg[bit_counter];
           //bit_counter <= bit_counter - 1;
           pulse_state <= PULSE_SECOND_HALF;
         end else begin
