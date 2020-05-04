@@ -12,7 +12,7 @@ module ice40_top (
 parameter NUM_LEDS = 72;
 parameter NUM_DRIVERS = 2;
 parameter NUM_CHANNELS = NUM_LEDS * 3;
-parameter ADDRESS_WIDTH = $clog2(NUM_CHANNELS * NUM_DRIVERS) + 1;
+parameter ADDRESS_WIDTH = $clog2(NUM_CHANNELS * NUM_DRIVERS);
 
 wire clk_50mhz;
 wire clk_16mhz;
@@ -53,19 +53,26 @@ wire rst;
 assign rst = !resetn;
 
 // Memory
-wire[ADDRESS_WIDTH - 1:0] mem_data_addr;
-reg[7:0] mem[0:NUM_CHANNELS*NUM_DRIVERS - 1];
-
-wire[7:0] mem_dout;
-assign mem_dout = mem[mem_data_addr];
-
+wire mem_re;
+wire[7:0] mem_rdata;
+wire[ADDRESS_WIDTH - 1:0] mem_raddr;
 wire mem_we;
-wire[7:0] mem_din;
-wire[ADDRESS_WIDTH - 1:0] mem_addr;
+wire[7:0] mem_wdata;
+wire[ADDRESS_WIDTH - 1:0] mem_waddr;
 
-always @(posedge mem_we) begin
-    mem[mem_addr] <= mem_din;
-end
+assign mem_re = 1'b1;
+
+bram #(.MEMORY_SIZE(NUM_CHANNELS * NUM_DRIVERS), .DATA_WIDTH(8)) bram(
+    .clk(clk_50mhz),
+
+    .wen(mem_we),
+    .wdata(mem_wdata),
+    .waddr(mem_waddr),
+
+    .ren(mem_re),
+    .rdata(mem_rdata),
+    .raddr(mem_raddr)
+);
 
 // SPI interface
 wire[7:0] spi_dout;
@@ -99,9 +106,9 @@ spi_memory #(.ADDRESS_WIDTH(ADDRESS_WIDTH)) memory_controller (
     .spi_selected(spi_selected),
 
     .mem_we(mem_we),
-    .mem_din(mem_din),
+    .mem_din(mem_wdata),
     .mem_dout(8'h55),
-    .mem_addr(mem_addr)
+    .mem_addr(mem_waddr)
 );
 
 // Strip drivers.
@@ -160,8 +167,8 @@ bus_arbiter #(.ADDRESS_WIDTH(ADDRESS_WIDTH), .DATA_WIDTH(8)) bus_arbiter(
     .data_rdy_0(data_rdy_0),
     .data_rdy_1(data_rdy_1),
 
-    .mem_data_addr(mem_data_addr),
-    .mem_data(mem_dout)
+    .mem_data_addr(mem_raddr),
+    .mem_data(mem_rdata)
 );
 
 endmodule

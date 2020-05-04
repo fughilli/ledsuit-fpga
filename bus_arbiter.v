@@ -44,28 +44,43 @@ assign mem_data_addr = (data_req_outstanding_0 ? data_addr_0 :
                        (data_req_outstanding_1 ? data_addr_1 :
                        (0)));
 
+reg data_cmpl_read_reg_0;
+reg data_cmpl_read_reg_1;
+
 always @(posedge clk) begin
     if (rst) begin
         data_rdy_reg_0 <= 0;
         data_rdy_reg_1 <= 0;
         data_reg_0 <= 0;
         data_reg_1 <= 0;
+        data_cmpl_read_reg_0 <= 0;
+        data_cmpl_read_reg_1 <= 0;
     end else begin
         // If request control line goes low, reset the ready latch.
         if (!data_req_0) begin
             data_rdy_reg_0 <= 0;
+            data_cmpl_read_reg_0 <= 0;
         end
         if (!data_req_1) begin
             data_rdy_reg_1 <= 0;
+            data_cmpl_read_reg_1 <= 0;
         end
 
         // Priority from 0 -> N: Read memory cell and latch to output.
         if (data_req_outstanding_0) begin
-            data_reg_0 <= mem_data;
-            data_rdy_reg_0 <= 1;
+            if (data_cmpl_read_reg_0) begin
+                data_reg_0 <= mem_data;
+                data_rdy_reg_0 <= 1;
+            end else begin
+                data_cmpl_read_reg_0 <= 1;
+            end
         end else if (data_req_outstanding_1) begin
-            data_reg_1 <= mem_data;
-            data_rdy_reg_1 <= 1;
+            if (data_cmpl_read_reg_1) begin
+                data_reg_1 <= mem_data;
+                data_rdy_reg_1 <= 1;
+            end else begin
+                data_cmpl_read_reg_1 <= 1;
+            end
         end
     end
 end

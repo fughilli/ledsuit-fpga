@@ -5,10 +5,10 @@ module test(
 
 reg clk_50mhz, rst;
 
-parameter ADDRESS_WIDTH = 10;
-parameter NUM_LEDS = 300;
+parameter NUM_LEDS = 20;
 parameter NUM_DRIVERS = 2;
 parameter NUM_CHANNELS = NUM_LEDS * 3;
+parameter ADDRESS_WIDTH = $clog2(NUM_CHANNELS * NUM_DRIVERS);
 
 
 wire data_req_0;
@@ -52,10 +52,19 @@ strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
 
 // Memory
 wire[ADDRESS_WIDTH - 1:0] mem_data_addr;
-reg[7:0] mem[0:NUM_CHANNELS*NUM_DRIVERS - 1];
-
 wire[7:0] mem_data;
-assign mem_data = mem[mem_data_addr];
+
+bram #(.MEMORY_SIZE(NUM_CHANNELS * NUM_DRIVERS), .DATA_WIDTH(8)) bram(
+    .clk(clk_50mhz),
+
+    .wen(1'b0),
+    .wdata(8'b0),
+    .waddr(7'b0),
+
+    .ren(1'b1),
+    .rdata(mem_data),
+    .raddr(mem_data_addr)
+);
 
 bus_arbiter #(.ADDRESS_WIDTH(ADDRESS_WIDTH), .DATA_WIDTH(8)) bus_arbiter(
     .clk(clk_50mhz),
@@ -86,7 +95,7 @@ begin
     $dumpvars(0, test);
 
     for(i=0; i<NUM_CHANNELS*NUM_DRIVERS; i+=1) begin
-        mem[i] = i;
+        bram.memory[i] = i * 2;
     end
 
     clk_50mhz=1'b0;
