@@ -19,6 +19,7 @@ parameter NUM_LEDS = 300;
 parameter NUM_DRIVERS = 8;
 parameter NUM_CHANNELS = NUM_LEDS * 3;
 parameter ADDRESS_WIDTH = $clog2(NUM_CHANNELS * NUM_DRIVERS);
+parameter CLOCK_RATE_MHZ = 50;
 
 wire clk_50mhz;
 wire clk_16mhz;
@@ -126,7 +127,7 @@ wire strip_out_0;
 
 assign PIN_4 = strip_out_0;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*0)) strip_driver_0(
@@ -148,7 +149,7 @@ wire strip_out_1;
 
 assign PIN_5 = strip_out_1;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*1)) strip_driver_1(
@@ -170,7 +171,7 @@ wire strip_out_2;
 
 assign PIN_6 = strip_out_2;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*2)) strip_driver_2(
@@ -192,7 +193,7 @@ wire strip_out_3;
 
 assign PIN_7 = strip_out_3;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*3)) strip_driver_3(
@@ -214,7 +215,7 @@ wire strip_out_4;
 
 assign PIN_8 = strip_out_4;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*4)) strip_driver_4(
@@ -236,7 +237,7 @@ wire strip_out_5;
 
 assign PIN_9 = strip_out_5;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*5)) strip_driver_5(
@@ -258,7 +259,7 @@ wire strip_out_6;
 
 assign PIN_10 = strip_out_6;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*6)) strip_driver_6(
@@ -280,7 +281,7 @@ wire strip_out_7;
 
 assign PIN_11 = strip_out_7;
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*7)) strip_driver_7(

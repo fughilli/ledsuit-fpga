@@ -1,5 +1,6 @@
 {% set num_drivers = 8 %}
 {% set indices = range(num_drivers) %}
+{% set clocking = 50 %}
 module ice40_top (
     input CLK,
     input PIN_1,
@@ -16,12 +17,16 @@ parameter NUM_LEDS = 300;
 parameter NUM_DRIVERS = {{num_drivers}};
 parameter NUM_CHANNELS = NUM_LEDS * 3;
 parameter ADDRESS_WIDTH = $clog2(NUM_CHANNELS * NUM_DRIVERS);
+parameter CLOCK_RATE_MHZ = {{clocking}};
 
 wire clk_50mhz;
 wire clk_16mhz;
 
 assign clk_16mhz = CLK;
 
+{% if clocking == 16 %}
+assign clk_50mhz = clk_16mhz;
+{% else %}
 // PLL configuration
 SB_PLL40_CORE pll_instance (
   .REFERENCECLK(clk_16mhz),
@@ -42,6 +47,7 @@ defparam pll_instance.FDA_RELATIVE = 4'b0000;
 defparam pll_instance.SHIFTREG_DIV_MODE = 2'b00;
 defparam pll_instance.PLLOUT_SELECT = "GENCLK";
 defparam pll_instance.ENABLE_ICEGATE = 1'b0;
+{% endif %}
 
 // Disable USB
 assign USBPU = 1'b0;
@@ -124,7 +130,7 @@ wire strip_out_{{index}};
 
 assign PIN_{{index + 4}} = strip_out_{{index}};
 
-strip_driver #(.INPUT_CLOCK_FREQ_MHZ(50),
+strip_driver #(.INPUT_CLOCK_FREQ_MHZ(CLOCK_RATE_MHZ),
                .MAX_LEDS(NUM_LEDS),
                .ADDRESS_WIDTH(ADDRESS_WIDTH),
                .BASE_ADDRESS(NUM_CHANNELS*{{index}})) strip_driver_{{index}}(
