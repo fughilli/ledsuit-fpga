@@ -35,14 +35,14 @@ module strip_driver(
   parameter PULSE_FIRST_HALF = 0;
   parameter PULSE_SECOND_HALF = 1;
 
-  reg[$clog2(RESET_PULSE_TIME) + 1:0] pulse_counter;
-  reg[$clog2(RESET_PULSE_TIME) + 1:0] pulse_counter_match;
+  reg[$clog2(RESET_PULSE_TIME):0] pulse_counter;
+  reg[$clog2(RESET_PULSE_TIME):0] pulse_counter_match;
 
   parameter CHANNEL_WIDTH = 8;
 
-  reg[$clog2(MAX_CHANNEL_INDEX) + 1:0] channel_counter;
-  reg[$clog2(MAX_CHANNEL_INDEX) + 1:0] mem_addr_reg;
-  reg[$clog2(CHANNEL_WIDTH) + 1:0] bit_counter;
+  reg[ADDRESS_WIDTH:0] channel_counter;
+  reg[ADDRESS_WIDTH:0] mem_addr_reg;
+  reg[$clog2(CHANNEL_WIDTH):0] bit_counter;
 
   reg current_bit;
 
